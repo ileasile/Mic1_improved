@@ -1,0 +1,26 @@
+// Default IJVM configuration for MIC-1
+10	BIPUSH		1	false	// Push byte onto stack                                                                                   
+59	DUP		0	false	// Copy top word on stack; push onto stack                                                                
+A7	GOTO		0	true	// Unconditional jump                                                                                     
+60	IADD		0	false	// Pop two words from stack; push their sum                                                               
+7E	IAND		0	false	// Pop two words from stack; push Boolean AND                                                             
+99	IFEQ		0	true	// Pop word from stack; branch if it is zero                                                              
+9B	IFLT		0	true	// Pop word from stack; branch if it is less than zero                                                    
+9F	IF_ICMPEQ	0	true	// Pop two words from stack; branch if equal                                                              
+84	IINC		2	false	// Add a constant to a local variable                                                             
+15	ILOAD		1	false	// Push local variable onto stack                                                                         
+B6	INVOKEVIRTUAL	0	true	// Invoke a method                                                                                
+B0	IOR		0	false	// Pop two words from stack; push Boolean OR                                                              
+AC	IRETURN		0	false	// Return from method with integer value                                                                  
+36	ISTORE		1	false	// Pop word from stack; store in local variable                                                           
+64	ISUB		0	false	// Pop two words from stack; push their difference                                                        
+13	LDC_W		0	true	// Push constant from constant pool onto stack                                                            
+00	NOP		0	false	// Do nothing                                                                                             
+57	POP		0	false	// Delete word on top of stack                                                                            
+5F	SWAP		0	false	// Swap the two top words on the stack                                                                    
+C4	WIDE		0	false	// Prefix instruction; next instruction has 16-bit index                                                  
+FF	HALT		0	false	// halt the simulator                                                                                     
+FE 	ERR		0	false	// print ERROR and halt                                                                                   
+FD	OUT		0	false	// Pop a word from the stack and use the low order 8-bits as an ASCI character to display on screen       
+FC	IN		0	false	// Read a character from standard input and put it in the low order 8-bits of a word pushed onto the stack
+

@@ -1,0 +1,295 @@
+// CUP specification for mic1asm.
+
+import java_cup.runtime.*;
+import java.lang.*;
+import java.util.*;
+
+/* Preliminaries to set up and use the scanner.  */
+action code 
+{: 
+private Mic1Parse mic1parse = new Mic1Parse() ; 
+private Mic1Statement s = new Mic1Statement() ; 
+private int instructionCount = 0 ; 
+:} ;
+
+// init with {: Mic1Scanner.init( );              :};
+scan with {: return Mic1Scanner.next_token(); :};
+
+/* Terminals (tokens returned by the scanner). */
+terminal EOL ;
+terminal PLUS ;
+terminal MINUS ;
+terminal ZERO ;
+terminal ONE ;
+terminal EIGHT ;
+terminal LESSTHAN ;
+terminal EQUALS ;
+terminal GREATERTHAN ;
+terminal LPAREN ;
+terminal RPAREN ;
+terminal SEMI ;
+terminal Integer address ;
+terminal String label ;
+terminal rd ;
+terminal wr ;
+terminal fetch ;
+terminal IF ;
+terminal ELSE ;
+terminal GOTO ;
+terminal N ;
+terminal Z ;
+terminal MBR ;
+terminal MAR ;
+terminal MDR ;
+terminal PC ;
+terminal SP ;
+terminal LV ;
+terminal CPP ;
+terminal TOS ;
+terminal OPC ;
+terminal H ;
+terminal MBRU ;
+terminal OR ;
+terminal AND ;
+terminal NOT ;
+terminal NOP ;
+terminal DOTLABEL ;
+terminal DOTDEFAULT ;
+
+/* Non terminals */
+non terminal Mic1Parse       program ;
+non terminal                 line_sequence ;
+non terminal                 line ;
+non terminal                 instruction ;
+non terminal                 directive ;
+non terminal                 statement_sequence ;
+non terminal                 statement ;
+non terminal                 io_statement ;
+non terminal                 control_statement ;
+non terminal                 if_statement ;
+non terminal                 condition ;
+non terminal                 multiway_branch_statement ;
+non terminal                 mb_expr ;
+non terminal                 goto_statement ;
+non terminal                 nop_statement ;
+non terminal                 assignment_statement ;
+non terminal                 target ;
+non terminal                 c_register ;
+non terminal                 expr ;
+non terminal                 operation ;
+non terminal                 a_term ;
+non terminal                 b_term ;
+
+/* The grammar */
+
+start with program ;
+
+program ::= line_sequence 
+{: RESULT = mic1parse ; :}
+        ;
+
+line_sequence ::= line line_sequence 
+                     |
+                     ;
+
+line ::=  instruction EOL
+{: instructionCount ++ ; :}
+     | directive EOL
+     | EOL
+     ;
+
+instruction ::= label:l statement_sequence
+{: s.label = l ; 
+   mic1parse.add_statement( s ) ; s = new Mic1Statement() ; :}
+              | statement_sequence
+{: s.label = new String( "%" + instructionCount ) ; 
+   mic1parse.add_statement( s ) ; s = new Mic1Statement() ; :}
+              | label:l
+{: s.label = l ; 
+   mic1parse.add_statement( s ) ; s = new Mic1Statement() ; :}
+            ;
+
+directive ::= DOTLABEL label:l address:a 
+// we should verify that the label has not already been defined
+{: mic1parse.add_label( l , a ) ; :}
+            | DOTDEFAULT statement_sequence
+// we should verify that a default has not already been defined
+{: mic1parse.defaultStatement = s ; s = new Mic1Statement() ; :}
+            ;
+
+statement_sequence ::= statement SEMI statement_sequence 
+                     | statement SEMI
+                     | statement
+                     ;
+
+statement ::= io_statement 
+            | control_statement 
+            | assignment_statement 
+            | nop_statement
+            ;
+
+io_statement ::= rd 
+{: s.i.READ = true ; :}
+               | wr 
+{: s.i.WRITE = true ; :}
+               | fetch 
+{: s.i.FETCH = true ; :}
+               ; 
+
+control_statement ::= if_statement 
+{: s.isIf = true ; :}
+                    | multiway_branch_statement 
+{: s.isMultiway = true ; :}
+                    | goto_statement
+{: s.isGoto = true; :}
+                    ;
+
+if_statement ::= IF LPAREN condition RPAREN GOTO label:g SEMI ELSE GOTO label:e
+{: s.gotoLabel = g ; s.elseLabel = e ; :} 
+             ;
+
+condition ::= N
+{: s.i.JAMN = true ; :}
+            | Z
+{: s.i.JAMZ = true ; :}
+            ;
+
+multiway_branch_statement ::= GOTO LPAREN mb_expr RPAREN
+{: s.i.JMPC = true ; :}
+                          ;
+
+mb_expr ::= MBR OR address:a
+{: s.i.NEXT_ADDRESS = a.intValue() ; :}
+        | MBR 
+{: s.i.NEXT_ADDRESS = 0 ; :}
+        ;
+
+goto_statement ::= GOTO label:l
+{: s.gotoLabel = l ; :}
+                 ;
+
+assignment_statement ::= target EQUALS assignment_statement
+                     | expr 
+                     ;
+
+target ::= c_register
+// Note that N and Z aren't really targets; they're place-holders.
+// We don't need to modify the instruction if they're used.
+       | N
+       | Z
+       ;
+
+c_register ::= MAR 
+{: s.i.MAR = true ; :}
+           | MDR 
+{: s.i.MDR = true ; :}
+           | PC 
+{: s.i.PC = true ; :}
+           | SP 
+{: s.i.SP = true ; :}
+           | LV 
+{: s.i.LV = true ; :}
+           | CPP 
+{: s.i.CPP = true ; :}
+           | TOS 
+{: s.i.TOS = true ; :}
+           | OPC 
+{: s.i.OPC = true ; :}
+           | H 
+{: s.i.H = true ; :}
+           ;
+
+expr ::= operation 
+       | operation LESSTHAN LESSTHAN EIGHT
+{: s.i.SLL8 = true ; :}
+       | operation GREATERTHAN GREATERTHAN ONE
+{: s.i.SRA1 = true ; :}
+       ;
+
+operation ::= a_term AND b_term 
+{: s.i.F0 = false ; s.i.F1 = false ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | b_term AND a_term
+{: s.i.F0 = false ; s.i.F1 = false ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | a_term OR b_term 
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | b_term OR a_term 
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | NOT b_term
+{: s.i.F0 = true ; s.i.F1 = false ;
+   s.i.ENA = false ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | NOT a_term
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = false ; s.i.INVA = true ; s.i.INC = false ; :}
+            | b_term PLUS a_term 
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | a_term PLUS b_term 
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | b_term PLUS ONE
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = true ; :}
+            | a_term PLUS ONE
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = false ; s.i.INVA = false ; s.i.INC = true ; :}
+            | b_term MINUS a_term
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = true ; s.i.INC = true ; :}
+            | MINUS a_term
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = false ; s.i.INVA = true ; s.i.INC = true ; :}
+            | b_term MINUS ONE
+{: s.i.F0 = true ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = true ; s.i.INVA = true ; s.i.INC = false ; :}
+            | b_term PLUS a_term PLUS ONE
+{: s.i.F0 = true ; s.i.F1 = true ; 
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = true ; :}
+            | a_term PLUS b_term PLUS ONE
+{: s.i.F0 = true ; s.i.F1 = true ; 
+   s.i.ENA = true ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = true ; :}
+            | b_term 
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = true ; s.i.INVA = false ; s.i.INC = false ; :}
+            | a_term
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = true ; s.i.ENB = false ; s.i.INVA = false ; s.i.INC = false ; :}
+            | MINUS ONE
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = false ; s.i.INVA = true ; s.i.INC = false ; :}
+            | ZERO
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = false ; s.i.INVA = false ; s.i.INC = false ; :}
+            | ONE
+{: s.i.F0 = false ; s.i.F1 = true ;
+   s.i.ENA = false ; s.i.ENB = false ; s.i.INVA = false ; s.i.INC = true ; :}
+            ;
+
+b_term ::= MDR 
+{: s.i.B = Mic1Instruction.B_MDR ; :}
+           | PC 
+{: s.i.B = Mic1Instruction.B_PC ; :}
+           | MBR 
+{: s.i.B = Mic1Instruction.B_MBR ; :}
+           | MBRU 
+{: s.i.B = Mic1Instruction.B_MBRU ; :}
+           | SP 
+{: s.i.B = Mic1Instruction.B_SP ; :}
+           | LV 
+{: s.i.B = Mic1Instruction.B_LV ; :}
+           | CPP 
+{: s.i.B = Mic1Instruction.B_CPP ; :}
+           | TOS 
+{: s.i.B = Mic1Instruction.B_TOS ; :}
+           | OPC 
+{: s.i.B = Mic1Instruction.B_OPC ; :}
+           ;
+
+a_term ::= H 
+         ;
+
+nop_statement ::= NOP
+                ;
